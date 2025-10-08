@@ -1,61 +1,29 @@
+import streamlit as st
 import pandas as pd
-from colorama import Fore, Style, init
 
-# Inicializa o colorama pra deixar bonito no terminal
-init(autoreset=True)
+# --- Configuração da página ---
+st.set_page_config(page_title="Painel de Comissões", layout="wide")
 
-print(Fore.CYAN + "🚀 Iniciando integração entre 'Tabelas.xlsx' e 'RegraComissao.xlsx' com base no ID...\n")
+st.title("📊 Sistema de Comissões - Piloto")
+st.markdown("Selecione uma tabela e visualize a comissão associada")
 
-# Nomes dos arquivos
-arquivo_base = "Tabelas.xlsx"
-arquivo_comissao = "RegraComissao.xlsx"
-arquivo_saida = "ResultadoFinal.xlsx"
+# --- Carregar dados ---
+@st.cache_data
+def carregar_dados():
+    try:
+        df_tabelas = pd.read_excel("Tabelas.xlsx")
+        df_regras = pd.read_excel("RegraComissao.xlsx")
+        return df_tabelas, df_regras
+    except Exception as e:
+        st.error(f"Erro ao carregar planilhas: {e}")
+        return None, None
 
-try:
-    # Lê as duas planilhas
-    tabelas = pd.read_excel(arquivo_base)
-    comissao = pd.read_excel(arquivo_comissao)
+df_tabelas, df_regras = carregar_dados()
 
-    print(Fore.GREEN + "✅ Planilhas carregadas com sucesso!")
-    print(Fore.YELLOW + f"📘 Colunas detectadas em {arquivo_base}: {list(tabelas.columns)}")
-    print(Fore.YELLOW + f"📗 Colunas detectadas em {arquivo_comissao}: {list(comissao.columns)}\n")
+if df_tabelas is not None:
+    tabela_selecionada = st.selectbox("Selecione o nome da tabela:", df_tabelas["NOME DA TABELA"].unique())
 
-    # Verifica se ambas possuem a coluna ID
-    if "ID" not in tabelas.columns or "ID" not in comissao.columns:
-        raise KeyError("❌ Uma das planilhas não possui a coluna 'ID'. Adicione antes de prosseguir.")
-
-    # Faz o merge (junção)
-    resultado = pd.merge(tabelas, comissao, on="ID", how="left", suffixes=('_Tabelas', '_Comissao'))
-
-    # Identifica quais IDs não encontraram correspondência
-    ids_sem_match = tabelas[~tabelas["ID"].isin(comissao["ID"])]
-
-    # Cria um resumo bonito
-    total_tabelas = len(tabelas)
-    total_comissao = len(comissao)
-    vinculadas = total_tabelas - len(ids_sem_match)
-
-    print(Fore.CYAN + "📊 RESUMO DA INTEGRAÇÃO:")
-    print(Fore.WHITE + f"- Registros em Tabelas: {total_tabelas}")
-    print(Fore.WHITE + f"- Registros em RegraComissao: {total_comissao}")
-    print(Fore.GREEN + f"- Registros vinculados com sucesso: {vinculadas}")
-    print(Fore.YELLOW + f"- Registros sem correspondência: {len(ids_sem_match)}\n")
-
-    # Exporta resultado completo + aba com IDs sem match
-    with pd.ExcelWriter(arquivo_saida, engine='openpyxl') as writer:
-        resultado.to_excel(writer, index=False, sheet_name='Resultado Integrado')
-        ids_sem_match.to_excel(writer, index=False, sheet_name='IDs sem correspondência')
-
-    print(Fore.GREEN + f"💾 Arquivo final salvo com sucesso: {arquivo_saida}")
-    print(Fore.CYAN + "✨ Duas abas criadas: 'Resultado Integrado' e 'IDs sem correspondência'.")
-
-except FileNotFoundError as e:
-    print(Fore.RED + f"❌ Erro: Arquivo não encontrado.\n{e}")
-
-except KeyError as e:
-    print(Fore.RED + f"❌ Erro: {e}")
-
-except Exception as e:
-    print(Fore.RED + f"⚠️ Erro inesperado: {e}")
-
-print(Style.RESET_ALL)
+    if tabela_selecionada:
+        st.subheader(f"Comissão para: **{tabela_selecionada}**")
+        regra = df_regras[df_regras["ID"] == df_tabelas.loc[df_tabelas["NOME DA TABELA"] == tabela_selecionada, "ID"].values[0]]
+        st.dataframe(regra, use_container_width=True)
