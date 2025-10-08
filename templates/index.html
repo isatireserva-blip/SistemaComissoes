@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Simulador de Comissão</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 flex items-center justify-center h-screen">
+
+  <div class="bg-white p-8 rounded-2xl shadow-xl w-96">
+    <h1 class="text-xl font-bold mb-4 text-center">💰 Simulador de Comissão</h1>
+
+    <input id="nome_tabela" type="text" placeholder="Nome da tabela"
+      class="border p-2 w-full rounded mb-2" autocomplete="off">
+
+    <ul id="sugestoes" class="border rounded hidden bg-white shadow mb-2"></ul>
+
+    <input id="parcela" type="number" placeholder="Número da parcela"
+      class="border p-2 w-full rounded mb-2">
+
+    <input id="valor" type="number" placeholder="Valor da parcela"
+      class="border p-2 w-full rounded mb-4">
+
+    <button id="btn" class="bg-blue-500 hover:bg-blue-600 text-white w-full py-2 rounded">Calcular</button>
+
+    <div id="resultado" class="mt-4 text-center font-semibold text-gray-700"></div>
+  </div>
+
+  <script>
+    const nomeTabela = document.getElementById('nome_tabela');
+    const sugestoes = document.getElementById('sugestoes');
+
+    nomeTabela.addEventListener('input', async e => {
+      const valor = e.target.value;
+      if (valor.length < 2) return;
+      const resp = await fetch(`/autocomplete?q=${valor}`);
+      const data = await resp.json();
+      sugestoes.innerHTML = '';
+      data.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item;
+        li.className = 'p-2 hover:bg-gray-100 cursor-pointer';
+        li.onclick = () => {
+          nomeTabela.value = item;
+          sugestoes.classList.add('hidden');
+        };
+        sugestoes.appendChild(li);
+      });
+      sugestoes.classList.remove('hidden');
+    });
+
+    document.getElementById('btn').onclick = async () => {
+      const nome = nomeTabela.value;
+      const parcela = document.getElementById('parcela').value;
+      const valor = document.getElementById('valor').value;
+
+      const resp = await fetch('/calcular', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({nome_tabela: nome, numero_parcela: parcela, valor_parcela: valor})
+      });
+
+      const data = await resp.json();
+      if (data.erro) {
+        document.getElementById('resultado').innerText = data.erro;
+      } else {
+        document.getElementById('resultado').innerText =
+          `Percentual: ${data.percentual}% | Comissão: R$ ${data.valor_comissao}`;
+      }
+    };
+  </script>
+
+</body>
+</html>
