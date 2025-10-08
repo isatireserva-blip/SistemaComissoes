@@ -1,29 +1,77 @@
 import streamlit as st
-import pandas as pd
+import sqlite3
+import bcrypt
+from pages.Comissoes import pagina_comissoes
 
-# --- Configuração da página ---
-st.set_page_config(page_title="Painel de Comissões", layout="wide")
+# ===========================
+# Funções auxiliares
+# ===========================
+def conectar():
+    return sqlite3.connect('usuarios.db')
 
-st.title("📊 Sistema de Comissões - Piloto")
-st.markdown("Selecione uma tabela e visualize a comissão associada")
+def autenticar(usuario, senha):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("SELECT senha_hash, nivel FROM usuarios WHERE usuario = ?", (usuario,))
+    resultado = cursor.fetchone()
+    conn.close()
 
-# --- Carregar dados ---
-@st.cache_data
-def carregar_dados():
-    try:
-        df_tabelas = pd.read_excel("Tabelas.xlsx")
-        df_regras = pd.read_excel("RegraComissao.xlsx")
-        return df_tabelas, df_regras
-    except Exception as e:
-        st.error(f"Erro ao carregar planilhas: {e}")
-        return None, None
+    if resultado:
+        senha_hash, nivel = resultado
+        if bcrypt.checkpw(senha.encode('utf-8'), senha_hash):
+            return True, nivel
+    return False, None
 
-df_tabelas, df_regras = carregar_dados()
 
-if df_tabelas is not None:
-    tabela_selecionada = st.selectbox("Selecione o nome da tabela:", df_tabelas["NOME DA TABELA"].unique())
+# ===========================
+# Interface de login
+# ===========================
+def tela_login():
+    st.title("🔐 Login do Sistema de Comissões")
 
-    if tabela_selecionada:
-        st.subheader(f"Comissão para: **{tabela_selecionada}**")
-        regra = df_regras[df_regras["ID"] == df_tabelas.loc[df_tabelas["NOME DA TABELA"] == tabela_selecionada, "ID"].values[0]]
-        st.dataframe(regra, use_container_width=True)
+    usuario = st.text_input("Usuário")
+    senha = st.text_input("Senha", type="password")
+
+    if st.button("Entrar"):
+        sucesso, nivel = autenticar(usuario, senha)
+        if sucesso:
+            st.session_state["logado"] = True
+            st.session_state["usuario"] = usuario
+            st.session_state["nivel"] = nivel
+            st.success(f"Bem-vindo(a), {usuario}! 🚀")
+            st.experimental_rerun()
+        else:
+            st.error("Usuário ou senha incorretos ❌")
+
+
+# ===========================
+# Página principal
+# ===========================
+def main():
+    if "logado" not in st.session_state or not st.session_state["logado"]:
+        tela_login()
+    else:
+        st.sidebar.title("Menu")
+        st.sidebar.write(f"👤 Usuário: {st.session_state['usuario']}")
+        st.sidebar.write(f"🧩 Nível: {st.session_state['nivel']}")
+
+        menu = st.sidebar.radio("Navegar para:", ["📊 Comissões", "👥 Gerenciar Usuários", "🚪 Sair"])
+
+        if menu == "📊 Comissões":
+            pagina_comissoes()
+
+        elif menu == "👥 Gerenciar Usuários":
+            if st.session_state["nivel"] == "admin":
+                from pages.Gerenciar_Usuarios import gerenciar_usuarios
+                gerenciar_usuarios()
+            else:
+                st.warning("⚠️ Acesso restrito a administradores.")
+
+        elif menu == "🚪 Sair":
+            for key in ["logado", "usuario", "nivel"]:
+                st.session_state.pop(key, None)
+            st.experimental_rerun()
+
+
+if __name__ == "__main__":
+    main()
